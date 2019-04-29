@@ -1,0 +1,127 @@
+#include <GSM.h>
+#define PINNUMBER ""
+GSM gsmAccess;
+GSMVoiceCall vcs;
+void setup()
+{
+pinMode(5,INPUT_PULLUP);    // 5 numaralı pin giriş olarak tanımlandı, dahili pullup direnci açıldı  
+gsmAccess.begin();  //Modemi aç 
+}
+void loop()
+{
+  int Buton_Durum = digitalRead(5); 
+  if (Buton_Durum == LOW)  // Butona basıldı mı 
+     {  
+        vcs.voiceCall("05*********");
+     }
+}
+
+
+#include <GSM.h>
+
+GSM gsmAccess;
+GSMVoiceCall vcs;
+int no;
+boolean giveUp;
+boolean hasActiveCall;
+boolean isReached;
+char buff[20];
+
+String getVoiceCall() {
+  Serial.println("no: " + no);
+  switch (no) {
+    case 0:
+      return "0553**208";
+    case 1:
+      return "0538**8";
+    case 2:
+      return "06362**388";
+    case 3:
+      return "0563***088";
+    case 4:
+      return "06346***8";
+  }
+  return "";
+}
+
+void setup()
+{
+  // Kaçıncı numarayı aradığını belirtiyor.
+  no = 0;             
+  // Tanımlanmış 5 numaranın hiçbirine ulaşamazsa kodu durdurmak için        
+  giveUp = true;        
+  hasActiveCall = false;
+  isReached = false;
+  // 5 numaralı pin giriş olarak tanımlandı, dahili pullup direnci açıldı       
+  pinMode(5, INPUT_PULLUP);    
+
+  // GSM erişimini sağlayana kadar bağlantı kurmaya çalışıyor.
+  boolean notConnected = true;
+  while(notConnected)
+  {
+    if(gsmAccess.begin()==GSM_READY)
+      notConnected = false;
+    else
+    {
+      Serial.println("Not connected");
+      delay(1000);
+    }
+  }
+  Serial.println("GSM initialized.");
+}
+
+void loop()
+{
+  // Butona basıldı mı 
+  boolean buttonPressed = digitalRead(5) == LOW;
+  
+  if (buttonPressed && giveUp)  
+  {  
+    giveUp = false;
+    no = 0;
+  }
+  
+  if (!giveUp && !isReached) {
+    if (!hasActiveCall) {
+      getVoiceCall().toCharArray(buff, 20);
+      vcs.voiceCall(buff);
+      hasActiveCall = true;
+    }
+    
+    // aramanın durumunu kontrol et, ona göre tepki ver.
+    switch (vcs.getvoiceCallStatus()) 
+    {
+      case IDLE_CALL:
+        break;
+
+      case CALLING: 
+        isReached = false;
+        break;
+
+      case RECEIVINGCALL:
+        break;
+
+      case TALKING: 
+        Serial.println("Reached no " + no);
+        isReached = true;
+        giveUp = true;
+        no = 0;
+        Serial.println("Talking, enter line to interrupt.");
+        while(Serial.read()!='\n')
+          delay(100);
+        vcs.hangCall();
+        hasActiveCall = false;
+        Serial.println("Hanged, success.");      
+        break;
+    }
+    
+    if (!isReached && vcs.ready()) {
+      Serial.println("Cannot reach no " + no);
+      no++;
+      if (no > 4) {
+        giveUp = true;
+        no = 0;
+      }
+    }
+  }
+}
